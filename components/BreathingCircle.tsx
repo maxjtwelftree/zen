@@ -1,141 +1,181 @@
-import { useEffect } from 'react';
-import { View, Dimensions } from 'react-native';
+import { useEffect } from "react";
+import { View, Text, Dimensions } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSequence,
-  withDelay,
   Easing,
   runOnJS,
-} from 'react-native-reanimated';
-import { useTheme } from '../constants/useTheme';
-import type { BreathingPattern } from '../constants/breathing';
+} from "react-native-reanimated";
+import { useTheme } from "../constants/useTheme";
+import type { BreathingPattern } from "../constants/breathing";
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const CIRCLE_SIZE = SCREEN_WIDTH * 0.6;
-const CIRCLE_MIN = 0.5;
-const CIRCLE_MAX = 1;
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const OUTER_SIZE = 240;
+const INNER_MIN = 160;
+const INNER_MAX = 220;
 
 interface BreathingCircleProps {
   pattern: BreathingPattern;
   isActive: boolean;
+  phase: string;
   onPhaseChange: (phase: string) => void;
 }
 
 export default function BreathingCircle({
   pattern,
   isActive,
+  phase,
   onPhaseChange,
 }: BreathingCircleProps) {
   const { colors } = useTheme();
-  const scale = useSharedValue(CIRCLE_MIN);
-  const opacity = useSharedValue(0.4);
+  const innerSize = useSharedValue(INNER_MIN);
+  const glowOpacity = useSharedValue(0.1);
 
   useEffect(() => {
     if (!isActive) {
-      scale.value = withTiming(CIRCLE_MIN, { duration: 800 });
-      opacity.value = withTiming(0.4, { duration: 800 });
+      innerSize.value = withTiming(INNER_MIN, { duration: 800 });
+      glowOpacity.value = withTiming(0.1, { duration: 800 });
       return;
     }
 
     const totalDuration =
-      (pattern.inhale + pattern.hold + pattern.exhale + pattern.holdAfter) * 1000;
+      (pattern.inhale + pattern.hold + pattern.exhale + pattern.holdAfter) *
+      1000;
+
+    let timeout: ReturnType<typeof setTimeout>;
+    let cancelled = false;
 
     function runCycle() {
-      if (!isActive) return;
+      if (cancelled) return;
 
       const inhaleMs = pattern.inhale * 1000;
       const holdMs = pattern.hold * 1000;
       const exhaleMs = pattern.exhale * 1000;
       const holdAfterMs = pattern.holdAfter * 1000;
 
-      runOnJS(onPhaseChange)('Breathe in');
-
-      scale.value = withTiming(CIRCLE_MAX, {
+      runOnJS(onPhaseChange)("INHALE");
+      innerSize.value = withTiming(INNER_MAX, {
         duration: inhaleMs,
         easing: Easing.bezier(0.4, 0, 0.2, 1),
       });
-      opacity.value = withTiming(0.9, {
+      glowOpacity.value = withTiming(0.25, {
         duration: inhaleMs,
         easing: Easing.bezier(0.4, 0, 0.2, 1),
       });
 
       if (holdMs > 0) {
-        setTimeout(() => {
-          if (!isActive) return;
-          runOnJS(onPhaseChange)('Hold');
+        timeout = setTimeout(() => {
+          if (cancelled) return;
+          runOnJS(onPhaseChange)("HOLD");
         }, inhaleMs);
       }
 
-      setTimeout(() => {
-        if (!isActive) return;
-        runOnJS(onPhaseChange)('Breathe out');
-
-        scale.value = withTiming(CIRCLE_MIN, {
+      timeout = setTimeout(() => {
+        if (cancelled) return;
+        runOnJS(onPhaseChange)("EXHALE");
+        innerSize.value = withTiming(INNER_MIN, {
           duration: exhaleMs,
           easing: Easing.bezier(0.4, 0, 0.2, 1),
         });
-        opacity.value = withTiming(0.4, {
+        glowOpacity.value = withTiming(0.1, {
           duration: exhaleMs,
           easing: Easing.bezier(0.4, 0, 0.2, 1),
         });
       }, inhaleMs + holdMs);
 
       if (holdAfterMs > 0) {
-        setTimeout(() => {
-          if (!isActive) return;
-          runOnJS(onPhaseChange)('Hold');
-        }, inhaleMs + holdMs + exhaleMs);
+        timeout = setTimeout(
+          () => {
+            if (cancelled) return;
+            runOnJS(onPhaseChange)("HOLD");
+          },
+          inhaleMs + holdMs + exhaleMs,
+        );
       }
 
-      setTimeout(() => {
-        if (isActive) runCycle();
+      timeout = setTimeout(() => {
+        if (!cancelled) runCycle();
       }, totalDuration);
     }
 
     runCycle();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
   }, [isActive, pattern]);
 
-  const circleStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    opacity: opacity.value,
+  const innerStyle = useAnimatedStyle(() => ({
+    width: innerSize.value,
+    height: innerSize.value,
+    borderRadius: innerSize.value / 2,
+  }));
+
+  const glowStyle = useAnimatedStyle(() => ({
+    width: innerSize.value + 40,
+    height: innerSize.value + 40,
+    borderRadius: (innerSize.value + 40) / 2,
+    opacity: glowOpacity.value,
   }));
 
   return (
     <View
       style={{
-        width: CIRCLE_SIZE,
-        height: CIRCLE_SIZE,
-        justifyContent: 'center',
-        alignItems: 'center',
+        width: OUTER_SIZE,
+        height: OUTER_SIZE,
+        justifyContent: "center",
+        alignItems: "center",
       }}
     >
-      {/* Outer glow */}
-      <Animated.View
-        style={[
-          circleStyle,
-          {
-            position: 'absolute',
-            width: CIRCLE_SIZE,
-            height: CIRCLE_SIZE,
-            borderRadius: CIRCLE_SIZE / 2,
-            backgroundColor: colors.accentSoft,
-          },
-        ]}
+      {/* Outer ring */}
+      <View
+        style={{
+          position: "absolute",
+          width: OUTER_SIZE,
+          height: OUTER_SIZE,
+          borderRadius: OUTER_SIZE / 2,
+          borderWidth: 3,
+          borderColor: colors.ring,
+        }}
       />
-      {/* Inner circle */}
+
+      {/* Glow */}
       <Animated.View
         style={[
-          circleStyle,
+          glowStyle,
           {
-            width: CIRCLE_SIZE * 0.85,
-            height: CIRCLE_SIZE * 0.85,
-            borderRadius: (CIRCLE_SIZE * 0.85) / 2,
+            position: "absolute",
             backgroundColor: colors.accent,
           },
         ]}
       />
+
+      {/* Inner filled circle */}
+      <Animated.View
+        style={[
+          innerStyle,
+          {
+            backgroundColor: colors.accent,
+            justifyContent: "center",
+            alignItems: "center",
+          },
+        ]}
+      >
+        {/* Phase label */}
+        <Text
+          style={{
+            fontSize: 14,
+            fontWeight: "500",
+            letterSpacing: 3,
+            color: "#2D3A2E",
+            textTransform: "uppercase",
+          }}
+        >
+          {phase}
+        </Text>
+      </Animated.View>
     </View>
   );
 }

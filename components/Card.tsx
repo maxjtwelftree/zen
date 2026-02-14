@@ -1,11 +1,11 @@
-import { Pressable, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useTheme } from '../constants/useTheme';
+import { Pressable, Text } from "react-native";
+import { useRouter } from "expo-router";
+import { useTheme } from "../constants/useTheme";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
-} from 'react-native-reanimated';
+} from "react-native-reanimated";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -40,18 +40,23 @@ export default function Card({ title, subtitle, emoji, href }: CardProps) {
           backgroundColor: colors.card,
           borderRadius: 20,
           padding: 24,
-          borderWidth: 1,
+          borderWidth: 0.5,
           borderColor: colors.cardBorder,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.06,
+          shadowRadius: 3,
         },
       ]}
     >
-      <Text style={{ fontSize: 32, marginBottom: 12 }}>{emoji}</Text>
+      <Text style={{ fontSize: 28, marginBottom: 12 }}>{emoji}</Text>
       <Text
         style={{
-          fontSize: 18,
-          fontWeight: '600',
+          fontSize: 17,
+          fontWeight: "600",
           color: colors.text,
           marginBottom: 4,
+          letterSpacing: 0.2,
         }}
       >
         {title}
